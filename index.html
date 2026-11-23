@@ -161,6 +161,23 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .plan-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;font-variant-numeric:tabular-nums}
 .plan-item button{font:inherit;font-size:.78rem;background:none;border:1px solid var(--line);color:var(--rose);border-radius:8px;padding:4px 10px;cursor:pointer}
 .toast{font-size:.85rem;color:var(--ok);min-height:1.2em}
+.notice{background:var(--brass);color:#24170c;font-weight:600;font-size:.95rem}
+.notice .wrap{padding-block:10px;text-align:center}
+.field>span{font-size:.8rem;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.admin-wide{margin-top:28px;display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start}
+@media (max-width:860px){.admin-wide{grid-template-columns:1fr}}
+.panel.full{grid-column:1/-1}
+.tar-f{border:1px solid var(--line);border-radius:12px;padding:16px;margin:0;display:grid;gap:12px;min-width:0}
+.tar-f legend{padding:0 6px;color:var(--brass);font-weight:700;font-size:.85rem}
+.tar-f.off{opacity:.55}
+.tar-rows{display:grid;gap:8px}
+.tar-row{display:grid;grid-template-columns:90px auto auto 110px auto;gap:8px;align-items:center;justify-content:start}
+.tar-row input{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 10px;width:100%;font-variant-numeric:tabular-nums}
+.tar-row span{color:var(--muted);font-size:.85rem}
+.tar-row button,.x-btn{font:inherit;font-size:.78rem;background:none;border:1px solid var(--line);color:var(--rose);border-radius:8px;padding:6px 10px;cursor:pointer}
+.chk{display:inline-flex;align-items:center;gap:8px;font-size:.9rem;color:var(--fg);cursor:pointer}
+.chk input{width:18px;height:18px;accent-color:var(--brass)}
+.unsaved{color:#ffd9a0;font-size:.85rem}
 .err{color:var(--rose)}
 
 footer{border-top:1px solid var(--line);padding-block:40px 110px;font-size:.85rem;color:var(--muted)}
@@ -208,6 +225,7 @@ body.show-wix .wix{display:block}
     <div class="lang-switch" role="group" aria-label="Taal / Language"><button type="button" data-lang="nl">NL</button><button type="button" data-lang="en">EN</button></div>
   </div>
 </header>
+<div class="notice" id="notice" hidden><div class="wrap" id="notice-text"></div></div>
 
 <main id="view"></main>
 
@@ -267,8 +285,30 @@ let PLAN=[
  {dame:"jessica",datum:iso(addDays(NOW,4)),van:"10:00",tot:"22:00"},
  {dame:"sara",datum:iso(addDays(NOW,5)),van:"12:00",tot:"20:00"}
 ];
+/* Tarieven, sluitingsdagen en mededeling (later: database) */
+let TARIEF=[
+ {nl:"Erotische massage",en:"Erotic massage",unl:"Ontspannende massage met sensuele afsluiting.",uen:"Relaxing massage with a sensual finish.",actief:true,rijen:[{min:30,prijs:60},{min:60,prijs:100}]},
+ {nl:"Massage Deluxe",en:"Massage Deluxe",unl:"Uitgebreide formule. Vraag gerust wat erbij hoort.",uen:"Extended package. Feel free to ask what is included.",actief:true,rijen:[{min:15,prijs:50},{min:30,prijs:100},{min:60,prijs:150}]}
+];
+let SLUIT=[];               // {datum, nl, en}
+let MEDE={aan:false,nl:"",en:""};
+
+/* Demo-opslag: bewaart wijzigingen in de browser van de beheerder */
+const OPSLAG="4star-demo-v1";
+function bewaar(){
+  try{localStorage.setItem(OPSLAG,JSON.stringify({v:1,DAMES,PLAN,TARIEF,SLUIT,MEDE}));return true;}
+  catch(e){return false;}
+}
+(function laad(){
+  try{const x=JSON.parse(localStorage.getItem(OPSLAG)||"null");
+    if(x&&x.v===1){DAMES=x.DAMES;PLAN=x.PLAN;TARIEF=x.TARIEF;SLUIT=x.SLUIT;MEDE=x.MEDE;}}catch(e){}
+  PLAN=PLAN.filter(p=>p.datum>=TODAY);          // oude datums vallen automatisch weg
+  SLUIT=SLUIT.filter(x=>x.datum>=TODAY);
+})();
+
 const dame=id=>DAMES.find(d=>d.id===id);
-const planOn=datum=>PLAN.filter(p=>p.datum===datum&&dame(p.dame)?.actief).sort((a,b)=>a.van.localeCompare(b.van));
+const dicht=datum=>SLUIT.find(x=>x.datum===datum);
+const planOn=datum=>dicht(datum)?[]:PLAN.filter(p=>p.datum===datum&&dame(p.dame)?.actief).sort((a,b)=>a.van.localeCompare(b.van));
 const bg=d=>d.foto?`background-image:url('${d.foto}')`:`--c1:${d.c[0]};--c2:${d.c[1]}`;
 const ini=d=>d.foto?"":esc(d.naam[0]);
 let uren=p=>p.van+" – "+p.tot;
@@ -298,6 +338,7 @@ const T={
   waToday:(n,u)=>`Hallo, ik wil graag vandaag langskomen bij ${n} (${u}). Kan dat?`,
   waDate:(n,d,u)=>`Hallo, ik wil graag een afspraak maken met ${n} op ${d} (${u}).`,
   waNone:n=>`Hallo, wanneer is ${n} weer aanwezig?`,
+  closedToday:"Vandaag gesloten",closedTomorrow:"Morgen gesloten",closedOn:"Uitzonderlijk gesloten",
   fCompany:"Onderneming",fLegalName:"[Juridische naam / handelsnaam]",fVat:"Ondernemingsnr.",fPrivacy:"Privacyverklaring",fCookies:"Cookiebeleid",fTerms:"Algemene voorwaarden",
   fHelp:"Hulp &amp; ondersteuning",fUtsopi:"UTSOPI – unie van sekswerkers",fPayoke:"Payoke – hulp bij uitbuiting",fAdults:"Uitsluitend voor meerderjarigen"},
  en:{gateEyebrow:"Adults only",gateTitle:"Are you 18 or older?",gateText:"This website contains information about erotic massage and is intended for adults only.",gateYes:"Yes, I am 18+",gateNo:"No, leave",
@@ -321,6 +362,7 @@ const T={
   waToday:(n,u)=>`Hello, I would like to come by today for ${n} (${u}). Is that possible?`,
   waDate:(n,d,u)=>`Hello, I would like to make an appointment with ${n} on ${d} (${u}).`,
   waNone:n=>`Hello, when will ${n} be available again?`,
+  closedToday:"Closed today",closedTomorrow:"Closed tomorrow",closedOn:"Exceptionally closed",
   fCompany:"Company",fLegalName:"[Legal name / trade name]",fVat:"Company no.",fPrivacy:"Privacy policy",fCookies:"Cookie policy",fTerms:"Terms and conditions",
   fHelp:"Help &amp; support",fUtsopi:"UTSOPI – union of sex workers",fPayoke:"Payoke – help with exploitation",fAdults:"Adults only"}
 };
@@ -329,6 +371,8 @@ const LOC=()=>LANG==="en"?"en-GB":"nl-BE";
 const fmtDate=s=>new Date(s+"T12:00").toLocaleDateString(LOC(),{weekday:"long",day:"numeric",month:"long"});
 const hm=x=>LANG==="en"?x:x.replace(":00","u").replace(":","u");
 uren=p=>hm(p.van)+" – "+hm(p.tot);
+const redenT=x=>LANG==="en"&&x.en?x.en:x.nl;
+const dichtTekst=(k,x)=>t(k)+(x&&redenT(x)?" · "+esc(redenT(x)):"");
 const kortT=d=>LANG==="en"&&d.kortEn?d.kortEn:d.kort;
 const tekstT=d=>LANG==="en"&&d.tekstEn?d.tekstEn:d.tekst;
 
@@ -356,11 +400,15 @@ const dayLabel=d=>d===TODAY?t("today"):d===TOMORROW?t("tomorrow"):fmtDate(d);
 
 /* ===== Pagina: Home ===== */
 function viewHome(){
-  const h=NOW.getHours();const open=h>=10&&h<22;
+  const h=NOW.getHours();
+  const dv=dicht(TODAY), dm=dicht(TOMORROW);
+  const open=!dv&&h>=10&&h<22;
+  const status=dv?dichtTekst("closedToday",dv):open?t("openNow"):(h<10?t("closedMorning"):(dm?t("closedTomorrow"):t("closedEvening")));
   const vandaag=planOn(TODAY), morgen=planOn(TOMORROW);
+  const komendDicht=SLUIT.slice().sort((a,b)=>a.datum.localeCompare(b.datum));
   return `
   <section class="hero"><div class="wrap">
-    <div class="open-now ${open?"":"closed"}"><i></i><span>${open?t("openNow"):(h<10?t("closedMorning"):t("closedEvening"))}</span></div>
+    <div class="open-now ${open?"":"closed"}"><i></i><span>${status}</span></div>
     <h1>${t("heroTitle")}</h1>
     <p>${t("heroText")}</p>
     <div class="btn-row">
@@ -381,13 +429,13 @@ function viewHome(){
         ${vandaag.length?`<div class="today-grid">${vandaag.map(p=>{const d=dame(p.dame);return `
           <a class="card" href="#dame-${d.id}"><div class="portrait" style="${bg(d)}">${ini(d)}</div>
           <div class="card-body"><h4>${esc(d.naam)}</h4><span class="hrs">${uren(p)}</span><span class="badge">${t("presentToday")}</span></div></a>`}).join("")}</div>`
-          :`<div class="empty">${t("noToday")}</div>`}
+          :`<div class="empty">${dv?dichtTekst("closedToday",dv):t("noToday")}</div>`}
       </div>
       <div>
         <div class="day-head"><h3>${t("tomorrow")}</h3><span>${fmtDate(TOMORROW)}</span></div>
         ${morgen.length?`<ul class="tomorrow-list">${morgen.map(p=>{const d=dame(p.dame);return `
           <li><a href="#dame-${d.id}"><span class="thumb" style="${bg(d)}">${ini(d)}</span><span><b>${esc(d.naam)}</b><span class="hrs">${uren(p)}</span></span></a></li>`}).join("")}</ul>`
-          :`<div class="empty">${t("noTomorrow")}</div>`}
+          :`<div class="empty">${dm?dichtTekst("closedTomorrow",dm):t("noTomorrow")}</div>`}
         <p class="note">${t("changes")}</p>
       </div>
     </div>
@@ -397,11 +445,9 @@ function viewHome(){
   <section class="bg-satijn" id="home-tarieven"><div class="wrap">
     <div class="eyebrow">${t("pricesEyebrow")}</div><h2>${t("pricesTitle")}</h2>
     <p class="lead">${t("pricesLead")}</p>
-    <div class="prices">
-      <div class="price-card"><h3>${t("p1")}</h3><p>${t("p1t")}</p>
-        <ul class="price-list"><li><span>30 ${t("min")}</span><b>€ 60</b></li><li><span>60 ${t("min")}</span><b>€ 100</b></li></ul></div>
-      <div class="price-card"><h3>${t("p2")}</h3><p>${t("p2t")}</p>
-        <ul class="price-list"><li><span>15 ${t("min")}</span><b>€ 50</b></li><li><span>30 ${t("min")}</span><b>€ 100</b></li><li><span>60 ${t("min")}</span><b>€ 150</b></li></ul></div>
+    <div class="prices">${TARIEF.filter(f=>f.actief&&f.rijen.length).map(f=>`
+      <div class="price-card"><h3>${esc(LANG==="en"&&f.en?f.en:f.nl)}</h3><p>${esc(LANG==="en"&&f.uen?f.uen:f.unl)}</p>
+        <ul class="price-list">${f.rijen.slice().sort((a,b)=>a.min-b.min).map(r=>`<li><span>${r.min} ${t("min")}</span><b>€ ${r.prijs}</b></li>`).join("")}</ul></div>`).join("")}
     </div>
     <p class="note">${t("pricesNote")}</p>
     <div class="pay" style="margin-top:28px">
@@ -420,6 +466,7 @@ function viewHome(){
         <dt>WhatsApp</dt><dd><a href="${waLink()}" target="_blank" rel="noopener">${t("sendMsg")}</a></dd>
         <dt>${t("open")}</dt><dd>${t("openVal")}</dd>
         <dt>${t("parking")}</dt><dd>${t("parkingVal")}</dd>
+        ${komendDicht.length?`<dt>${t("closedOn")}</dt><dd>${komendDicht.map(x=>esc(fmtDate(x.datum))+(redenT(x)?" ("+esc(redenT(x))+")":"")).join("<br>")}</dd>`:""}
       </dl>
       <div class="mapslot"><div>${t("mapT")}<br><a href="https://www.google.com/maps/search/?api=1&query=Timmerdonckstraat+23+2650+Edegem" target="_blank" rel="noopener">${t("mapLink")}</a></div></div>
     </div>
@@ -453,7 +500,7 @@ function viewDames(){
 function viewDame(id){
   const d=dame(id);
   if(!d) return `<section><div class="wrap"><div class="empty">${t("gone")} <a href="#dames">${t("goneLink")}</a>.</div></div></section>`;
-  const komend=PLAN.filter(p=>p.dame===id&&p.datum>=TODAY).sort((a,b)=>a.datum.localeCompare(b.datum)||a.van.localeCompare(b.van)).slice(0,6);
+  const komend=PLAN.filter(p=>p.dame===id&&p.datum>=TODAY&&!dicht(p.datum)).sort((a,b)=>a.datum.localeCompare(b.datum)||a.van.localeCompare(b.van)).slice(0,6);
   const p0=komend[0];
   const knop=p0?(p0.datum===TODAY?t("btnToday"):t("btnDate"))+esc(d.naam):t("btnAsk")+esc(d.naam);
   return `<section class="bg-gordijn"><div class="wrap">
@@ -511,8 +558,9 @@ function viewBeheer(){
   const toekomst=PLAN.filter(p=>p.datum>=TODAY).sort((a,b)=>a.datum.localeCompare(b.datum)||a.van.localeCompare(b.van));
   const perDag={};toekomst.forEach(p=>{(perDag[p.datum]=perDag[p.datum]||[]).push(p)});
   return `<section><div class="wrap">
-    <div class="admin-bar">Demo van de beheerpagina. In Wix wordt dit een <b>dashboardpagina</b>: alleen zichtbaar in het Wix-dashboard voor eigenaar en medewerkers, nooit op de publieke site. Probeer het: wat je hier toevoegt, verschijnt meteen op Home en bij de dame.</div>
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:24px;flex-wrap:wrap"><h1 style="font-size:clamp(2.2rem,5vw,3.2rem)">Beheer</h1><button class="btn btn-ghost btn-sm" type="button" id="b-uit">Afmelden</button></div>
+    <div class="admin-bar">Demo van de beheerpagina. Wijzigingen worden bewaard <b>in deze browser</b>: je ziet ze terug na herladen, maar andere bezoekers zien ze niet. In de echte site worden ze centraal opgeslagen en zijn ze meteen voor iedereen zichtbaar.</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:24px;flex-wrap:wrap"><h1 style="font-size:clamp(2.2rem,5vw,3.2rem)">Beheer</h1><div class="btn-row"><button class="btn btn-ghost btn-sm" type="button" id="b-reset">Demo terugzetten</button><button class="btn btn-ghost btn-sm" type="button" id="b-uit">Afmelden</button></div></div>
+    <div class="toast err" id="t-reset" role="status"></div>
     <div class="admin">
       <div style="display:grid;gap:24px">
         <form class="panel" id="f-plan">
@@ -549,12 +597,63 @@ function viewBeheer(){
       <div class="panel">
         <h3>Planning komende dagen</h3>
         ${Object.keys(perDag).length?Object.entries(perDag).map(([dt,items])=>`
-          <div class="plan-day"><h4>${dt===TODAY?"Vandaag":dt===TOMORROW?"Morgen":fmtDate(dt)}</h4>
+          <div class="plan-day"><h4>${dt===TODAY?"Vandaag":dt===TOMORROW?"Morgen":fmtDate(dt)}${dicht(dt)?' · <span style="color:var(--rose)">gesloten</span>':""}</h4>
           ${items.map(p=>`<div class="plan-item"><span><b>${esc(dame(p.dame)?.naam||"?")}</b> · ${uren(p)}</span><button type="button" data-del="${PLAN.indexOf(p)}">Verwijder</button></div>`).join("")}</div>`).join("")
           :'<div class="empty">Nog niets gepland.</div>'}
         <h3 style="margin-top:14px">Team</h3>
         ${DAMES.map(d=>`<div class="plan-item"><span><b>${esc(d.naam)}</b> · ${d.actief?"actief":"niet actief"}</span><button type="button" data-toggle="${d.id}" style="color:var(--muted)">${d.actief?"Op non-actief":"Activeren"}</button></div>`).join("")}
       </div>
+    </div>
+    <div class="admin-wide">
+      <form class="panel" id="f-mede">
+        <h3>Mededeling bovenaan de site</h3>
+        <label class="chk"><input type="checkbox" id="m-aan" ${MEDE.aan?"checked":""}> Mededeling tonen</label>
+        <label class="field"><span>Tekst (NL)</span><input id="m-nl" maxlength="140" value="${esc(MEDE.nl)}" placeholder="bv. Deze week extra open tot 23u"></label>
+        <label class="field"><span>Tekst (EN, mag leeg)</span><input id="m-en" maxlength="140" value="${esc(MEDE.en)}"></label>
+        <button class="btn btn-brass" type="submit">Mededeling opslaan</button>
+        <div class="toast" id="t-mede" role="status"></div>
+      </form>
+
+      <form class="panel" id="f-sluit">
+        <h3>Uitzonderlijk gesloten</h3>
+        <label class="field"><span>Datum</span><input type="date" id="s-datum" min="${TODAY}" value="${TODAY}" required></label>
+        <label class="field"><span>Reden (NL, mag leeg)</span><input id="s-nl" maxlength="60" placeholder="bv. Kerstmis"></label>
+        <label class="field"><span>Reden (EN, mag leeg)</span><input id="s-en" maxlength="60" placeholder="bv. Christmas"></label>
+        <button class="btn btn-brass" type="submit">Sluitingsdag toevoegen</button>
+        <div class="toast" id="t-sluit" role="status"></div>
+        ${SLUIT.length?SLUIT.slice().sort((a,b)=>a.datum.localeCompare(b.datum)).map(x=>`<div class="plan-item"><span><b>${esc(fmtDate(x.datum))}</b>${x.nl?" · "+esc(x.nl):""}</span><button type="button" data-delsluit="${x.datum}">Verwijder</button></div>`).join(""):'<div class="empty">Geen sluitingsdagen gepland.</div>'}
+      </form>
+
+      <form class="panel full" id="f-tar">
+        <h3>Tarieven</h3>
+        <p class="note" style="margin:0">Pas prijzen of duur aan en klik op <b>Tarieven opslaan</b>. Wat niet is aangevinkt bij "Tonen op de site", blijft bewaard maar wordt niet getoond.</p>
+        ${(TDRAFT||TARIEF).map((f,fi)=>`
+        <fieldset class="tar-f ${f.actief?"":"off"}" data-fi="${fi}">
+          <legend>Formule ${fi+1}</legend>
+          <div class="row2">
+            <label class="field"><span>Naam (NL)</span><input data-k="nl" maxlength="40" value="${esc(f.nl)}"></label>
+            <label class="field"><span>Naam (EN)</span><input data-k="en" maxlength="40" value="${esc(f.en||"")}"></label>
+          </div>
+          <div class="row2">
+            <label class="field"><span>Uitleg (NL)</span><input data-k="unl" maxlength="120" value="${esc(f.unl||"")}"></label>
+            <label class="field"><span>Uitleg (EN)</span><input data-k="uen" maxlength="120" value="${esc(f.uen||"")}"></label>
+          </div>
+          <div class="tar-rows">
+            ${f.rijen.map((r,ri)=>`<div class="tar-row"><input type="number" data-min min="5" max="240" step="5" value="${r.min}" aria-label="Duur in minuten"><span>min</span><span>€</span><input type="number" data-prijs min="0" max="9999" step="1" value="${r.prijs}" aria-label="Prijs in euro"><button type="button" data-delrij="${fi}-${ri}" aria-label="Verwijder deze duur">✕</button></div>`).join("")}
+          </div>
+          <div class="btn-row" style="align-items:center">
+            <button type="button" class="btn btn-ghost btn-sm" data-addrij="${fi}">+ Duur toevoegen</button>
+            <label class="chk"><input type="checkbox" data-k="actief" ${f.actief?"checked":""}> Tonen op de site</label>
+            <button type="button" class="x-btn" data-delf="${fi}">Formule verwijderen</button>
+          </div>
+        </fieldset>`).join("")}
+        <div class="btn-row" style="align-items:center">
+          <button type="button" class="btn btn-ghost btn-sm" id="b-addf">+ Formule toevoegen</button>
+          <button class="btn btn-brass" type="submit">Tarieven opslaan</button>
+          ${TDRAFT?'<span class="unsaved">Niet opgeslagen wijzigingen</span>':""}
+        </div>
+        <div class="toast" id="t-tar" role="status"></div>
+      </form>
     </div>
     <div class="wix">Wix: pagina "Beheer", beveiligd met wachtwoord, verborgen in het menu. Invoervelden (dropdown, datumkiezer, tijdkiezers) zijn gekoppeld aan een dataset in schrijfmodus op <b>Planning</b>. Alternatief zonder code: rechtstreeks in de Wix-app op de gsm via CMS → Planning → "+".</div>
   </div></section>`;
@@ -562,8 +661,10 @@ function viewBeheer(){
 
 /* ===== Router ===== */
 const view=document.getElementById("view");
-function render(){
+let TDRAFT=null;   // tarieven in bewerking, nog niet opgeslagen
+function render(keep){
   const h=(location.hash||"#home").slice(1);
+  const sy=window.scrollY;
   let html,nav="home";
   if(h==="dames"){html=viewDames();nav="dames";}
   else if(h.startsWith("dame-")){html=viewDame(h.slice(5));nav="dames";}
@@ -571,10 +672,14 @@ function render(){
   else {html=viewHome();nav=h==="home-tarieven"?"tarieven":h==="home-contact"?"contact":"home";}
   view.innerHTML=html;
   document.querySelectorAll("[data-nav]").forEach(a=>{if(a.dataset.nav===nav)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current")});
-  if(h.startsWith("home-")){document.getElementById(h)?.scrollIntoView();}else{window.scrollTo(0,0);}
+  const nt=MEDE.aan?(LANG==="en"&&MEDE.en?MEDE.en:MEDE.nl):"";
+  document.getElementById("notice").hidden=!nt||h==="beheer";
+  document.getElementById("notice-text").textContent=nt;
+  if(keep===true){window.scrollTo(0,sy);}
+  else if(h.startsWith("home-")){document.getElementById(h)?.scrollIntoView();}else{window.scrollTo(0,0);}
   if(h==="beheer"){beheerOK?bindBeheer():bindLogin();}
 }
-window.addEventListener("hashchange",render);
+window.addEventListener("hashchange",()=>{TDRAFT=null;render();});
 
 function bindBeheer(){
   document.getElementById("b-uit").addEventListener("click",()=>{beheerOK=false;try{sessionStorage.removeItem("beheerOK")}catch(e){};location.hash="home";});
@@ -585,7 +690,9 @@ function bindBeheer(){
     const t=document.getElementById("t-plan");
     if(p.tot<=p.van){t.textContent="Het einduur moet na het beginuur liggen.";t.className="toast err";return;}
     if(PLAN.some(x=>x.dame===p.dame&&x.datum===p.datum&&p.van<x.tot&&x.van<p.tot)){t.textContent=dame(p.dame).naam+" staat op dat moment al ingepland.";t.className="toast err";return;}
-    PLAN.push(p);render();
+    const sl=dicht(p.datum);
+    PLAN.push(p);bewaar();render(true);
+    if(sl){const w=document.getElementById("t-plan");w.className="toast err";w.textContent="Let op: deze dag staat als gesloten ingesteld. De dame verschijnt niet op de site tot je de sluiting verwijdert.";return;}
     const t2=document.getElementById("t-plan");t2.textContent=`Toegevoegd: ${dame(p.dame).naam}, ${fmtDate(p.datum)}, ${uren(p)}.`;
   });
   document.getElementById("f-dame").addEventListener("submit",e=>{
@@ -596,11 +703,79 @@ function bindBeheer(){
       kort:document.getElementById("d-kort").value.trim()||"Nieuw in het team",talen:document.getElementById("d-talen").value.trim()||"NL",
       tekst:document.getElementById("d-tekst").value.trim()||"Voorstelling volgt.",kortEn:document.getElementById("d-kort-en").value.trim(),tekstEn:document.getElementById("d-tekst-en").value.trim(),foto:null};
     const file=document.getElementById("d-foto").files[0];
-    const klaar=()=>{DAMES.push(nieuw);render();document.getElementById("t-dame").textContent=`${naam} is toegevoegd en staat nu bij Onze dames.`;};
-    if(file){const r=new FileReader();r.onload=()=>{nieuw.foto=r.result;klaar();};r.readAsDataURL(file);}else klaar();
+    const klaar=()=>{DAMES.push(nieuw);const ok=bewaar();render(true);if(!ok)document.getElementById("t-dame").className="toast err";document.getElementById("t-dame").textContent=`${naam} is toegevoegd en staat nu bij Onze dames.`;};
+    if(file){verklein(file,600).then(u=>{nieuw.foto=u;klaar();}).catch(()=>klaar());}else klaar();
   });
-  view.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",()=>{PLAN.splice(+b.dataset.del,1);render();}));
-  view.querySelectorAll("[data-toggle]").forEach(b=>b.addEventListener("click",()=>{const d=dame(b.dataset.toggle);d.actief=!d.actief;render();}));
+  view.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",()=>{PLAN.splice(+b.dataset.del,1);bewaar();render(true);}));
+  view.querySelectorAll("[data-toggle]").forEach(b=>b.addEventListener("click",()=>{const d=dame(b.dataset.toggle);d.actief=!d.actief;bewaar();render(true);}));
+  /* Demo terugzetten */
+  const rs=document.getElementById("b-reset");
+  rs.addEventListener("click",()=>{
+    if(rs.dataset.zeker!=="1"){rs.dataset.zeker="1";rs.textContent="Klik nogmaals om alles te wissen";document.getElementById("t-reset").textContent="Alle wijzigingen in deze browser gaan verloren.";return;}
+    try{localStorage.removeItem(OPSLAG)}catch(e){}
+    location.reload();
+  });
+
+  /* Mededeling */
+  document.getElementById("f-mede").addEventListener("submit",e=>{
+    e.preventDefault();
+    MEDE={aan:document.getElementById("m-aan").checked,nl:document.getElementById("m-nl").value.trim(),en:document.getElementById("m-en").value.trim()};
+    if(MEDE.aan&&!MEDE.nl){const w=document.getElementById("t-mede");w.className="toast err";w.textContent="Vul eerst een Nederlandse tekst in.";return;}
+    bewaar();render(true);
+    document.getElementById("t-mede").textContent=MEDE.aan?"Opgeslagen. De mededeling staat nu bovenaan de site.":"Opgeslagen. Er staat geen mededeling op de site.";
+  });
+
+  /* Sluitingsdagen */
+  document.getElementById("f-sluit").addEventListener("submit",e=>{
+    e.preventDefault();
+    const x={datum:document.getElementById("s-datum").value,nl:document.getElementById("s-nl").value.trim(),en:document.getElementById("s-en").value.trim()};
+    const w=document.getElementById("t-sluit");
+    if(!x.datum||x.datum<TODAY){w.className="toast err";w.textContent="Kies vandaag of een latere datum.";return;}
+    if(dicht(x.datum)){w.className="toast err";w.textContent="Die dag staat al als gesloten.";return;}
+    const gepland=PLAN.filter(p=>p.datum===x.datum).map(p=>dame(p.dame)?.naam).filter(Boolean);
+    SLUIT.push(x);bewaar();render(true);
+    const w2=document.getElementById("t-sluit");
+    w2.textContent=`Gesloten op ${fmtDate(x.datum)} toegevoegd.`+(gepland.length?` Let op: ${gepland.join(", ")} ${gepland.length>1?"stonden":"stond"} die dag ingepland en ${gepland.length>1?"worden":"wordt"} niet getoond.`:"");
+  });
+  view.querySelectorAll("[data-delsluit]").forEach(b=>b.addEventListener("click",()=>{SLUIT=SLUIT.filter(x=>x.datum!==b.dataset.delsluit);bewaar();render(true);}));
+
+  /* Tarieven */
+  const leesTarieven=()=>[...view.querySelectorAll(".tar-f")].map(fs=>({
+    nl:fs.querySelector('[data-k="nl"]').value.trim(),
+    en:fs.querySelector('[data-k="en"]').value.trim(),
+    unl:fs.querySelector('[data-k="unl"]').value.trim(),
+    uen:fs.querySelector('[data-k="uen"]').value.trim(),
+    actief:fs.querySelector('[data-k="actief"]').checked,
+    rijen:[...fs.querySelectorAll(".tar-row")].map(r=>({min:parseInt(r.querySelector("[data-min]").value,10),prijs:parseInt(r.querySelector("[data-prijs]").value,10)}))
+  }));
+  const wijzig=fn=>{TDRAFT=leesTarieven();fn(TDRAFT);render(true);};
+  view.querySelectorAll("[data-addrij]").forEach(b=>b.addEventListener("click",()=>wijzig(d=>d[+b.dataset.addrij].rijen.push({min:45,prijs:0}))));
+  view.querySelectorAll("[data-delrij]").forEach(b=>b.addEventListener("click",()=>{const[fi,ri]=b.dataset.delrij.split("-").map(Number);wijzig(d=>d[fi].rijen.splice(ri,1));}));
+  view.querySelectorAll("[data-delf]").forEach(b=>b.addEventListener("click",()=>wijzig(d=>d.splice(+b.dataset.delf,1))));
+  document.getElementById("b-addf").addEventListener("click",()=>wijzig(d=>d.push({nl:"Nieuwe formule",en:"",unl:"",uen:"",actief:false,rijen:[{min:30,prijs:0}]})));
+  view.querySelectorAll('#f-tar input').forEach(i=>i.addEventListener("input",()=>{if(!TDRAFT){TDRAFT=leesTarieven();}}));
+  document.getElementById("f-tar").addEventListener("submit",e=>{
+    e.preventDefault();
+    const d=leesTarieven();
+    const fout=d.findIndex(f=>!f.nl||!f.rijen.length||f.rijen.some(r=>!(r.min>0)||!(r.prijs>=0)));
+    const w=document.getElementById("t-tar");
+    if(fout>=0){w.className="toast err";w.textContent=`Formule ${fout+1}: vul een naam in en geef elke duur een geldig aantal minuten en een prijs.`;return;}
+    TARIEF=d;TDRAFT=null;bewaar();render(true);
+    document.getElementById("t-tar").textContent="Tarieven opgeslagen. Ze staan nu op de site.";
+  });
+}
+
+/* Foto verkleinen zodat ze in de browseropslag past */
+function verklein(file,max){
+  return new Promise((ok,nok)=>{
+    const r=new FileReader();
+    r.onerror=nok;
+    r.onload=()=>{const img=new Image();img.onerror=nok;img.onload=()=>{
+      const f=Math.min(1,max/Math.max(img.width,img.height));
+      const c=document.createElement("canvas");c.width=Math.round(img.width*f);c.height=Math.round(img.height*f);
+      c.getContext("2d").drawImage(img,0,0,c.width,c.height);ok(c.toDataURL("image/jpeg",0.8));};img.src=r.result;};
+    r.readAsDataURL(file);
+  });
 }
 
 /* Verborgen ingang: 3x snel klikken op het ©-teken */
